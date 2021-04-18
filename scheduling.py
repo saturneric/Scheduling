@@ -15,7 +15,7 @@ def orders_processor(orders: Dict[str, model.Order]) -> List[runtime.RuntimeProd
     for sorted_order in sorted_orders_list:
         for item in sorted_order.products:
             runtime_product = runtime.RuntimeProduct(item["product"], item["amount"])
-            runtime_product.set_ddl(sorted_order.latest_end_time)
+            runtime_product.set_ddl_start(sorted_order.latest_end_time, sorted_order.earliest_start_time)
             products_lines.add_runtime_product(runtime_product)
 
     runtime_product = products_lines.pop_runtime_product()
@@ -41,7 +41,7 @@ def search_semi_products(floor, produce_tree, produce_list, runtime_product):
         for item in runtime_product.product.semi_products:
 
             runtime_semi_product = runtime.RuntimeProduct(item["semi_product"], item["amount"])
-            runtime_semi_product.set_ddl(runtime_product.ddl)
+            runtime_semi_product.set_ddl_start(runtime_product.ddl, runtime_product.start)
 
             # print("C", runtime_semi_product.product.product_id, runtime_semi_product.ddl)
 
@@ -60,7 +60,13 @@ def products_processor(runtime_products: List[runtime.RuntimeProduct]):
 
         processes_list.append(runtime_process)
 
+    processes_list = sorted(processes_list, key=lambda rt_pcs: (rt_pcs.ddl, rt_pcs.delay))
+
+    for runtime_process in processes_list:
+        print(runtime_process.process.pcs_id, runtime_process.delay)
+
 
 if __name__ == "__main__":
-    orders, products, processes, resources = dataset_importer.import_dataset()
-    orders_processor(orders)
+    m_orders, m_products, m_processes, m_resources = dataset_importer.import_dataset()
+    produce_list = orders_processor(m_orders)
+    products_processor(produce_list)

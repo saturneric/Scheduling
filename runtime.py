@@ -7,12 +7,13 @@ class RuntimeProduct:
 
     def __init__(self, product, amount):
         self.ddl: datetime = datetime.today()
+        self.start: datetime = datetime.today()
         self.product: model.Product = product
         self.amount: int = amount
 
-    def set_ddl(self, ddl: datetime):
+    def set_ddl_start(self, ddl: datetime, start: datetime):
         self.ddl = ddl
-        pass
+        self.start = start
 
 
 class ProductLine:
@@ -71,4 +72,5 @@ class RuntimeProcess:
     def __init__(self, runtime_product: RuntimeProduct, process: model.Process):
         self.runtime_product = runtime_product
         self.process = process
-        self.start_ddl = self.runtime_product.ddl - timedelta(minutes=process.pdt_time)
+        self.ddl = runtime_product.ddl
+        self.delay = self.runtime_product.ddl - timedelta(minutes=process.pdt_time)
