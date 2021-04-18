@@ -1,8 +1,11 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
+from utils import *
 
 
+@auto_str
+@auto_repr
 class Order:
 
     def __init__(self, order_id: str, description: str):
@@ -23,27 +26,43 @@ class Order:
         })
 
 
+@auto_str
+@auto_repr
 class Product:
 
     def __init__(self, product_id: str, product_name: str):
         self.product_id: str = product_id
         self.product_name: str = product_name
+        self.semi_products: List[Dict[str, any]] = []
+        self.process: Optional[Process] = None
+
+    def add_semi_product(self, semi_product: Product, amount):
+        if semi_product.product_id != self.product_id:
+            self.semi_products.append({
+                "semi_product": semi_product,
+                "amount": amount
+            })
+
+    def set_process(self, process):
+        self.process = process
 
 
+@auto_str
+@auto_repr
 class Workspace:
 
     def __init__(self, name: str):
         self.name: str = name
 
 
+@auto_str
+@auto_repr
 class Process:
 
     def __init__(self,
                  pcs_id: str,
                  pcs_name: str,
                  product: Product,
-                 prev_pcs: Process,
-                 last_pcs: Process,
                  workspace: Workspace):
 
         self.pcs_id: str = pcs_id
@@ -56,10 +75,15 @@ class Process:
 
         self.pdt_time: int = 0
 
-        self.prev_pcs: Process = prev_pcs
-        self.last_pcs: Process = last_pcs
+        self.prev_pcs: Optional[Process] = None
+        self.last_pcs: Optional[Process] = None
+
         self.res_needs: List[Dict[str, any]] = []
         self.workspace: Workspace = workspace
+
+    def set_pre_last_pcs(self, prev_pcs: Optional[Process], last_pcs: Optional[Process]):
+        self.prev_pcs: Process = prev_pcs
+        self.last_pcs: Process = last_pcs
 
     def set_mode_quantity(self, production_mode: int, min_quantity: int, max_quantity: int):
         self.production_mode: int = production_mode
@@ -76,20 +100,26 @@ class Process:
         })
 
 
+@auto_str
+@auto_repr
 class Resource:
 
     def __init__(self, rsc_id: str, rsc_name: str, rsc_type: str, workspace: Workspace):
         self.rsc_id: str = rsc_id
         self.rsc_name: str = rsc_name
         self.rsc_type: str = rsc_type
+        self.amount: int = 0
 
-        self.attr: str = ""
-        self.basic_attrs: Set = set()
+        self.basic_attr: Optional[str] = None
+        self.attrs: Set = set()
         self.workspace: Workspace = workspace
 
-    def set_attr(self, attr: str, basic_attrs: List[str]):
-        if attr not in basic_attrs:
-            raise Exception("Attr NOT IN Basic_Attrs")
+    def set_amount(self, amount: int):
+        self.amount: int = amount
 
-        self.attr: str = attr
-        self.basic_attrs: List[str] = basic_attrs
+    def set_basic_attr(self, basic_attr: Optional[str]):
+        self.basic_attr = basic_attr
+        self.attrs.add(basic_attr)
+
+    def add_attr(self, attr: str):
+        self.attrs.add(attr)
