@@ -53,7 +53,7 @@ def import_process(res, products: Dict[str, model.Product]) -> Dict[str, model.P
         process: model.Process = model.Process(record[0], record[1], products[record[2]], record[9])
         process.set_mode_quantity(record[5], record[6], record[7])
         process.set_product_time(record[8])
-        products[record[2]].set_process(process)
+        products[record[2]].add_process(process)
         processes[process.pcs_id] = process
 
     for record in res:

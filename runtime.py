@@ -1,6 +1,6 @@
 import model
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 
 class RuntimeProduct:
@@ -8,12 +8,16 @@ class RuntimeProduct:
     def __init__(self, product, amount):
         self.ddl: datetime = datetime.today()
         self.start: datetime = datetime.today()
+        self.delay = datetime.today()
         self.product: model.Product = product
         self.amount: int = amount
 
     def set_ddl_start(self, ddl: datetime, start: datetime):
         self.ddl = ddl
         self.start = start
+
+    def set_delay(self, processes_pdt_times):
+        self.delay = self.ddl - timedelta(minutes=processes_pdt_times)
 
 
 class ProductLine:
@@ -74,3 +78,73 @@ class RuntimeProcess:
         self.process = process
         self.ddl = runtime_product.ddl
         self.delay = self.runtime_product.ddl - timedelta(minutes=process.pdt_time)
+
+
+class RuntimeResourceNeed:
+
+    def __int__(self,
+                process: model.Process,
+                resource_attr: str,
+                workspace: str,
+                start: datetime, end: datetime):
+        if start < end:
+            raise RuntimeError("the start time must before the end time")
+
+        self.process: model.Process = process
+        self.resource_attr: str = resource_attr
+        self.workspace: str = workspace
+        self.start: datetime = start
+        self.end: datetime = end
+
+
+class RuntimeResource:
+
+    def __init__(self, resource: model.Resource):
+        self.resource: model.Resource = resource
+        self.workspace: str = self.resource.workspace
+        self.basic_attr = self.resource.basic_attr
+        self.resource_attrs = self.resource.attrs
+        self.schedules: List[RuntimeResourceNeed] = []
+
+    def add_schedule(self, schedule: RuntimeResourceNeed) -> bool:
+
+        pre_need: Optional[RuntimeResourceNeed] = None
+        back_need: Optional[RuntimeResourceNeed] = None
+
+        for resource_need in self.schedules:
+            if resource_need.end > schedule.start:
+                pre_need = resource_need
+            if back_need is not None \
+                    and resource_need.start < resource_need.end:
+                back_need = resource_need
+
+        if pre_need is not None or back_need is not None:
+            return False
+        else:
+            self.schedules.append(schedule)
+            self.schedules = sorted(self.schedules, key=lambda need: need.start)
+            return True
+
+
+class RuntimeResourcePool:
+
+    def __init__(self, resources: List[model.Resource]):
+        self.pool: List[RuntimeResource] = []
+
+        for resource in resources:
+            runtime_resource = RuntimeResource(resource)
+            self.pool.append(runtime_resource)
+
+    def alloc_resource(self, resource_need: RuntimeResourceNeed) -> bool:
+        # 精确搜索
+        for runtime_resource in self.pool:
+            if runtime_resource.basic_attr == resource_need.resource_attr:
+                if runtime_resource.add_schedule(resource_need) is True:
+                    return True
+        # 放宽条件搜索
+        for runtime_resource in self.pool:
+            if resource_need.resource_attr in runtime_resource.resource_attrs:
+                if runtime_resource.add_schedule(resource_need) is True:
+                    return True
+
+        return False

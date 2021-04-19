@@ -34,7 +34,7 @@ class Product:
         self.product_id: str = product_id
         self.product_name: str = product_name
         self.semi_products: List[Dict[str, any]] = []
-        self.process: Optional[Process] = None
+        self.processes: List[Process] = []
 
     def add_semi_product(self, semi_product: Product, amount):
         if semi_product.product_id != self.product_id:
@@ -43,8 +43,8 @@ class Product:
                 "amount": amount
             })
 
-    def set_process(self, process):
-        self.process = process
+    def add_process(self, process):
+        self.processes.append(process)
 
 
 @auto_str
@@ -104,7 +104,7 @@ class Process:
 @auto_repr
 class Resource:
 
-    def __init__(self, rsc_id: str, rsc_name: str, rsc_type: str, workspace: Workspace):
+    def __init__(self, rsc_id: str, rsc_name: str, rsc_type: str, workspace: str):
         self.rsc_id: str = rsc_id
         self.rsc_name: str = rsc_name
         self.rsc_type: str = rsc_type
@@ -112,7 +112,7 @@ class Resource:
 
         self.basic_attr: Optional[str] = None
         self.attrs: Set = set()
-        self.workspace: Workspace = workspace
+        self.workspace: str = workspace
 
     def set_amount(self, amount: int):
         self.amount: int = amount

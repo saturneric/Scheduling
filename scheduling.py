@@ -52,18 +52,30 @@ def search_semi_products(floor, produce_tree, produce_list, runtime_product):
 
 
 def products_processor(runtime_products: List[runtime.RuntimeProduct]):
-    processes_list: List[runtime.RuntimeProcess] = []
+
+    runtime_products_processes_list: List[Dict[str, any]] = []
 
     for runtime_product in runtime_products:
-        runtime_process: runtime.RuntimeProcess = \
-            runtime.RuntimeProcess(runtime_product, runtime_product.product.process)
+        processes_list: List[runtime.RuntimeProcess] = []
+        production_times: int = 0
+        for process in runtime_product.product.processes:
+            runtime_process: runtime.RuntimeProcess = \
+                runtime.RuntimeProcess(runtime_product, process)
+            production_times += runtime_process.process.pdt_time
+            processes_list.append(runtime_process)
 
-        processes_list.append(runtime_process)
+        runtime_product.set_delay(production_times)
+        runtime_products_processes_list.append({"runtimeProduct": runtime_product, "runtimeProcess": processes_list})
 
-    processes_list = sorted(processes_list, key=lambda rt_pcs: (rt_pcs.ddl, rt_pcs.delay))
+    runtime_products_processes_list = \
+        sorted(runtime_products_processes_list,
+               key=lambda dict_item:
+               (dict_item["runtimeProduct"].ddl, dict_item["runtimeProduct"].delay))
 
-    for runtime_process in processes_list:
-        print(runtime_process.process.pcs_id, runtime_process.delay)
+    for item in runtime_products_processes_list:
+        for runtime_process in item["runtimeProcess"]:
+            runtime_product: runtime.RuntimeProduct = item["runtimeProduct"]
+            print(runtime_product.product.product_id, runtime_product.delay, runtime_process.process.pcs_id)
 
 
 if __name__ == "__main__":
