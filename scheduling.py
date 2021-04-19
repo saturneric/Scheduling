@@ -4,6 +4,7 @@ import csv
 from typing import List, Dict
 from datetime import datetime
 import time
+import math
 import dataset_importer
 
 
@@ -59,10 +60,13 @@ def products_processor(runtime_products: List[runtime.RuntimeProduct]):
         processes_list: List[runtime.RuntimeProcess] = []
         production_times: int = 0
         for process in runtime_product.product.processes:
-            runtime_process: runtime.RuntimeProcess = \
-                runtime.RuntimeProcess(runtime_product, process)
-            production_times += runtime_process.process.pdt_time
-            processes_list.append(runtime_process)
+            # 执行工序的次数
+            process_number = math.ceil(float(runtime_product.amount) / float(process.max_quantity))
+            for i in range(process_number):
+                runtime_process: runtime.RuntimeProcess = \
+                    runtime.RuntimeProcess(runtime_product, process)
+                production_times += runtime_process.process.pdt_time
+                processes_list.append(runtime_process)
 
         runtime_product.set_delay(production_times)
         runtime_products_processes_list.append({"runtimeProduct": runtime_product, "runtimeProcess": processes_list})
@@ -72,10 +76,26 @@ def products_processor(runtime_products: List[runtime.RuntimeProduct]):
                key=lambda dict_item:
                (dict_item["runtimeProduct"].ddl, dict_item["runtimeProduct"].delay))
 
+    # 输出检查
     for item in runtime_products_processes_list:
         for runtime_process in item["runtimeProcess"]:
             runtime_product: runtime.RuntimeProduct = item["runtimeProduct"]
             print(runtime_product.product.product_id, runtime_product.delay, runtime_process.process.pcs_id)
+
+    return runtime_products_processes_list
+
+
+# def resource_processor(resources: List[model.Resource], runtime_products_processes_list: List[Dict[str, any]]):
+#     resource_pool = runtime.RuntimeResourcePool(resources)
+#
+#     for item in runtime_products_processes_list:
+#         ifalloc = True
+#         for runtime_process in item["runtimeProcess"]:
+#             runtime_process: runtime.RuntimeProcess = runtime_process
+#             for resource_item in runtime_process.process.res_needs:
+#                 resource_item['']
+#                 runtime_resource_need = runtime.RuntimeResourceNeed(runtime_process.process)
+#             if resource_pool.alloc_resource():
 
 
 if __name__ == "__main__":

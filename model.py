@@ -93,9 +93,9 @@ class Process:
     def set_product_time(self, pdt_time: int):
         self.pdt_time: int = pdt_time
 
-    def add_res_need(self, rcs_attrs, amount):
+    def add_res_need(self, rcs_attr: str, amount: int):
         self.res_needs.append({
-            "rcs_attrs": rcs_attrs,
+            "rcs_attr": rcs_attr,
             "amount": amount
         })
 
