@@ -63,7 +63,7 @@ class Process:
                  pcs_id: str,
                  pcs_name: str,
                  product: Product,
-                 workspace: Workspace):
+                 workspace: str):
 
         self.pcs_id: str = pcs_id
         self.pcs_name: str = pcs_name
@@ -79,7 +79,7 @@ class Process:
         self.last_pcs: Optional[Process] = None
 
         self.res_needs: List[Dict[str, any]] = []
-        self.workspace: Workspace = workspace
+        self.workspace: str = workspace
 
     def set_pre_last_pcs(self, prev_pcs: Optional[Process], last_pcs: Optional[Process]):
         self.prev_pcs: Process = prev_pcs
