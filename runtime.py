@@ -124,10 +124,9 @@ class RuntimeResource:
             return False
 
         for resource_need in self.schedules:
-            if resource_need.end > schedule.start:
+            if resource_need.end > schedule.start > resource_need.start:
                 pre_need = resource_need
-            if back_need is not None \
-                    and resource_need.start < resource_need.end:
+            if resource_need.start < schedule.end < resource_need.end:
                 back_need = resource_need
 
         if pre_need is not None or back_need is not None:
@@ -148,7 +147,7 @@ class RuntimeResource:
         if len(self.schedules) == 1:
             target_schedule = self.schedules[0]
             if self.start_time < target_schedule.start:
-                if target_schedule.start - self.start_time > duration + timedelta(minutes=1):
+                if target_schedule.start - self.start_time > duration:
                     return target_schedule.start - duration
 
             else:
@@ -158,11 +157,11 @@ class RuntimeResource:
             pre_schedule = self.schedules[i]
             back_schedule = self.schedules[i + 1]
 
-            if self.start_time < pre_schedule.start:
-                if pre_schedule.start - self.start_time > duration + timedelta(minutes=1):
-                    return pre_schedule.start - duration - timedelta(minutes=1)
+            if self.start_time < pre_schedule.start and i == 0:
+                if pre_schedule.start - self.start_time > duration:
+                    return pre_schedule.start - duration
 
-            elif back_schedule.start - pre_schedule.end > duration + timedelta(minutes=1):
+            elif back_schedule.start - pre_schedule.end > duration:
                 return pre_schedule.end
 
         return self.schedules[-1].end
