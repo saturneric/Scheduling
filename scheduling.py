@@ -38,15 +38,16 @@ def search_semi_products(floor, produce_tree, produce_list, runtime_product):
     produce_tree.append({"runtime_product": runtime_product, "runtime_semi_products": runtime_semi_products})
     # print("F", runtime_product.product.product_id, runtime_product.ddl)
     if len(runtime_product.product.semi_products) > 0:
+        for i in range(runtime_product.amount):
+            for item in runtime_product.product.semi_products:
 
-        for item in runtime_product.product.semi_products:
+                runtime_semi_product = runtime.RuntimeProduct(item["semi_product"], item["amount"])
+                runtime_semi_product.set_ddl_start(runtime_product.ddl, runtime_product.start)
 
-            runtime_semi_product = runtime.RuntimeProduct(item["semi_product"], item["amount"])
-            runtime_semi_product.set_ddl_start(runtime_product.ddl, runtime_product.start)
+                # print("C", runtime_semi_product.product.product_id, runtime_semi_product.ddl)
 
-            # print("C", runtime_semi_product.product.product_id, runtime_semi_product.ddl)
-
-            search_semi_products(floor+1, runtime_semi_products, produce_list, runtime_semi_product)
+                for k in range(runtime_semi_product.amount):
+                    search_semi_products(floor+1, runtime_semi_products, produce_list, runtime_semi_product)
 
     print("L", floor, runtime_product.product.product_id, runtime_product.ddl)
     produce_list.append(runtime_product)
