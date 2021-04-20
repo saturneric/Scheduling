@@ -1,6 +1,8 @@
+from __future__ import annotations
 import model
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+from copy import deepcopy
 
 
 class RuntimeProduct:
@@ -84,61 +86,68 @@ class RuntimeProcess:
 # 运行时资源需求
 class RuntimeResourceNeed:
 
-    def __int__(self,
-                process: model.Process,
-                resource_attr: str,
-                workspace: str,
+    def __init__(self, runtime_process: RuntimeProcess, resource_attr: str, workspace: str,
                 start: datetime, end: datetime):
-        if start < end:
+        if start > end:
             raise RuntimeError("the start time must before the end time")
 
-        self.process: model.Process = process
+        self.process: model.Process = runtime_process.process
         self.resource_attr: str = resource_attr
         self.workspace: str = workspace
         self.start: datetime = start
         self.end: datetime = end
+        self.plan_alloc_resources_id: List[str] = []
+        self.could_alloc = False
+        self.ddl = runtime_process.ddl
+
+    def add_plan_alloc_resource(self, runtime_resource_id: str):
+        self.plan_alloc_resources_id.append(runtime_resource_id)
 
 
 # 运行时资源
 class RuntimeResource:
 
-    def __init__(self, resource: model.Resource):
+    def __init__(self, resource: model.Resource, start_time: datetime):
         self.resource: model.Resource = resource
         self.workspace: str = self.resource.workspace
         self.basic_attr = self.resource.basic_attr
         self.resource_attrs = self.resource.attrs
         self.schedules: List[RuntimeResourceNeed] = []
+        self.start_time: datetime = start_time
 
-    def add_schedule(self, schedule: RuntimeResourceNeed) -> bool:
+    def add_schedule(self, schedule: RuntimeResourceNeed, do: bool) -> bool:
 
         pre_need: Optional[RuntimeResourceNeed] = None
         back_need: Optional[RuntimeResourceNeed] = None
 
+        if schedule.ddl < self.start_time:
+            return False
+
         for resource_need in self.schedules:
-            if resource_need.end > schedule.start:
+            if resource_need.end > schedule.start > resource_need.start:
                 pre_need = resource_need
-            if back_need is not None \
-                    and resource_need.start < resource_need.end:
+            if resource_need.start < schedule.end < resource_need.end:
                 back_need = resource_need
 
         if pre_need is not None or back_need is not None:
             return False
         else:
-            self.schedules.append(schedule)
-            self.schedules = sorted(self.schedules, key=lambda need: need.start)
+            if do is True:
+                self.schedules.append(schedule)
+                self.schedules = sorted(self.schedules, key=lambda need: need.start)
             return True
 
     def get_earliest_available_free_times(self, duration: timedelta) -> datetime:
 
         # 没有已分配任务
-        if self.schedules == 0:
-            return datetime.now()
+        if len(self.schedules) == 0:
+            return self.start_time
 
         # 只有一个已分配任务
-        if self.schedules == 1:
+        if len(self.schedules) == 1:
             target_schedule = self.schedules[0]
-            if datetime.now() < target_schedule.start:
-                if target_schedule.start - datetime.now() > duration:
+            if self.start_time < target_schedule.start:
+                if target_schedule.start - self.start_time > duration:
                     return target_schedule.start - duration
 
             else:
@@ -148,8 +157,8 @@ class RuntimeResource:
             pre_schedule = self.schedules[i]
             back_schedule = self.schedules[i + 1]
 
-            if datetime.now() < pre_schedule.start:
-                if pre_schedule.start - datetime.now() > duration:
+            if self.start_time < pre_schedule.start and i == 0:
+                if pre_schedule.start - self.start_time > duration:
                     return pre_schedule.start - duration
 
             elif back_schedule.start - pre_schedule.end > duration:
@@ -158,58 +167,120 @@ class RuntimeResource:
         return self.schedules[-1].end
 
 
-# 资源池
 class RuntimeResourcePool:
 
-    def __init__(self, resources: List[model.Resource]):
-        self.pool: List[RuntimeResource] = []
+    def __init__(self, resources: List[model.Resource], start_time: datetime):
+        self.pool: Dict[str, RuntimeResource] = {}
+        self.start_time: datetime = start_time
 
         for resource in resources:
-            runtime_resource = RuntimeResource(resource)
-            self.pool.append(runtime_resource)
+            runtime_resource = RuntimeResource(resource, self.start_time)
+            self.pool[runtime_resource.resource.rsc_id] = runtime_resource
 
-    def alloc_resource(self, resource_need: RuntimeResourceNeed) -> bool:
-        # 精确搜索
-        for runtime_resource in self.pool:
-            # 排除不同车间
-            if runtime_resource.workspace != resource_need.workspace:
+    # 资源分配操作
+    def alloc_resource(self, resource_needs: List[RuntimeResourceNeed]):
+        for resource_need in resource_needs:
+            if resource_need.could_alloc is False:
                 continue
-            if runtime_resource.basic_attr == resource_need.resource_attr:
-                if runtime_resource.add_schedule(resource_need) is True:
-                    return True
-        # 放宽条件搜索
-        for runtime_resource in self.pool:
-            # 排除不同车间
-            if runtime_resource.workspace != resource_need.workspace:
+            for plan_alloc_resource_id in resource_need.plan_alloc_resources_id:
+                self.pool[plan_alloc_resource_id].add_schedule(resource_need, True)
+
+    def try_alloc_resource(self, resource_needs: List[RuntimeResourceNeed]) -> bool:
+
+        temp_pool = deepcopy(list(self.pool.values()))
+
+        # 已经满足的需求
+        fulfilled_needs = []
+
+        if_all_alloc = True
+
+        for resource_need in resource_needs:
+
+            if resource_need.could_alloc is True:
                 continue
-            if resource_need.resource_attr in runtime_resource.resource_attrs:
-                if runtime_resource.add_schedule(resource_need) is True:
-                    return True
 
-        return False
+            # 精确搜索
+            for runtime_resource in temp_pool:
+                # 排除不同车间
+                if runtime_resource.workspace != resource_need.workspace:
+                    continue
+                if runtime_resource.basic_attr == resource_need.resource_attr:
+                    if runtime_resource.add_schedule(resource_need, False) is True:
+                        resource_need.add_plan_alloc_resource(runtime_resource.resource.rsc_id)
+                        fulfilled_needs.append(resource_need)
+                        runtime_resource.add_schedule(resource_need, True)
+                        resource_need.could_alloc = True
+                        break
 
-    def get_earliest_free_time(self, resource_need: RuntimeResourceNeed) -> datetime:
+            # 是否已经分配完成
+            if resource_need.could_alloc is False:
+                # 放宽条件搜索
+                for runtime_resource in temp_pool:
+                    # 排除不同车间
+                    if runtime_resource.workspace != resource_need.workspace:
+                        continue
+                    if resource_need.resource_attr in runtime_resource.resource_attrs:
+                        if runtime_resource.add_schedule(resource_need, False) is True:
+                            resource_need.add_plan_alloc_resource(runtime_resource.resource.rsc_id)
+                            fulfilled_needs.append(resource_need)
+                            runtime_resource.add_schedule(resource_need, True)
+                            resource_need.could_alloc = True
+                            break
 
-        earliest_time: Optional[datetime] = None
+            if resource_need not in fulfilled_needs:
+                if_all_alloc = False
 
-        duration = resource_need.end - resource_need.start
+        return if_all_alloc
 
-        # 精确搜索
-        for runtime_resource in self.pool:
-            if runtime_resource.basic_attr == resource_need.resource_attr:
-                temp_earliest_time = runtime_resource.get_earliest_available_free_times(duration)
-                if earliest_time is None or earliest_time > temp_earliest_time:
-                    earliest_time = temp_earliest_time
+    def reset_earliest_free_start_time(self, resource_needs: List[RuntimeResourceNeed]) -> bool:
 
-        # 优先利用对口资源
-        if earliest_time is not None:
-            return earliest_time
+        if_found = False
 
-        # 放宽条件搜索
-        for runtime_resource in self.pool:
-            if resource_need.resource_attr in runtime_resource.resource_attrs:
-                temp_earliest_time = runtime_resource.get_earliest_available_free_times(duration)
-                if earliest_time is None or earliest_time > temp_earliest_time:
-                    earliest_time = temp_earliest_time
+        for resource_need in resource_needs:
 
-        return earliest_time
+            if resource_need.could_alloc is True:
+                continue
+
+            earliest_time: Optional[datetime] = None
+
+            duration = resource_need.end - resource_need.start
+
+            # 精确搜索
+            for runtime_resource in self.pool.values():
+                # 排除不同车间
+                if runtime_resource.workspace != resource_need.workspace:
+                    continue
+                if runtime_resource.basic_attr == resource_need.resource_attr:
+                    temp_earliest_time = runtime_resource.get_earliest_available_free_times(duration)
+                    # 时间不能超过DDL
+                    if temp_earliest_time > resource_need.ddl - duration:
+                        continue
+                    if earliest_time is None or earliest_time > temp_earliest_time:
+                        earliest_time = temp_earliest_time
+
+            # 优先利用对口资源
+            if earliest_time is not None:
+                resource_need.start = earliest_time
+            # 放宽条件搜索
+            else:
+                for runtime_resource in self.pool.values():
+                    # 排除不同车间
+                    if runtime_resource.workspace != resource_need.workspace:
+                        continue
+                    if resource_need.resource_attr in runtime_resource.resource_attrs:
+                        temp_earliest_time = runtime_resource.get_earliest_available_free_times(duration)
+                        # 时间不能超过DDL
+                        if temp_earliest_time > resource_need.ddl - duration:
+                            continue
+                        if earliest_time is None or earliest_time > temp_earliest_time:
+                            earliest_time = temp_earliest_time
+
+            if earliest_time is None:
+                if_found = False
+            else:
+                resource_need.start = earliest_time
+                resource_need.end = earliest_time + duration
+                if_found = True
+
+        return if_found
+

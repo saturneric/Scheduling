@@ -84,8 +84,14 @@ def import_resource(res) -> Dict[str, model.Resource]:
 
 def import_resource_attributes(res, resources: Dict[str, model.Resource]):
     for record in res:
-        resources[record[0]].set_basic_attr(record[1])
-        resources[record[0]].add_attr(record[2])
+        resources[record[0]].set_basic_attr(record[2])
+        for attr in record[1].split(","):
+            resources[record[0]].add_attr(attr)
+
+
+def import_process_resource(res, processes: Dict[str, model.Process]):
+    for record in res:
+        processes[record[0]].add_res_need(record[1], record[2])
 
 
 def import_dataset():
@@ -132,6 +138,11 @@ def import_dataset():
     res = cur.fetchall()
 
     import_resource_attributes(res, resources)
+
+    cur.execute("SELECT * FROM aps_process_resource;")
+    res = cur.fetchall()
+
+    import_process_resource(res, processes)
 
     conn.close()
 
