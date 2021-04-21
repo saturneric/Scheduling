@@ -1,3 +1,6 @@
+import json
+
+
 def auto_str(cls):
     def __str__(self):
         return '%s(%s)' % (
@@ -15,3 +18,7 @@ def auto_repr(cls):
 
     cls.__repr__ = __repr__
     return cls
+
+
+def dumps(obj) -> str:
+    return json.dumps(obj, ensure_ascii=False, indent=4, sort_keys=False)
